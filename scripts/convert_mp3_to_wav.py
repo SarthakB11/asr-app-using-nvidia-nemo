@@ -3,7 +3,10 @@ import argparse
 import os
 from pydub import AudioSegment
 
-def convert_to_wav(mp3_file_path, output_wav_path, target_sr=16000, channels=1):
+
+def convert_to_wav(
+    mp3_file_path, output_wav_path, target_sr=16000, channels=1
+):
     """
     Converts an MP3 file to a WAV file with specified sample rate and channels.
 
@@ -11,7 +14,7 @@ def convert_to_wav(mp3_file_path, output_wav_path, target_sr=16000, channels=1):
         mp3_file_path (str): Path to the input MP3 file.
         output_wav_path (str): Path to save the output WAV file.
         target_sr (int): Target sample rate for the WAV file.
-        channels (int): Number of channels for the WAV file (1 for mono, 2 for stereo).
+        channels (int): Number of channels for the WAV file (1=mono, 2=stereo).
     """
     try:
         if not os.path.exists(mp3_file_path):
@@ -20,7 +23,10 @@ def convert_to_wav(mp3_file_path, output_wav_path, target_sr=16000, channels=1):
 
         print(f"Loading MP3 file: {mp3_file_path}")
         audio = AudioSegment.from_mp3(mp3_file_path)
-        print(f"Original audio - Channels: {audio.channels}, Frame rate: {audio.frame_rate}")
+        print(
+            f"Original audio - Channels: {audio.channels}, "
+            f"Frame rate: {audio.frame_rate}"
+        )
 
         print(f"Setting channels to {channels} (mono)")
         audio = audio.set_channels(channels)
@@ -40,16 +46,35 @@ def convert_to_wav(mp3_file_path, output_wav_path, target_sr=16000, channels=1):
         return True
     except Exception as e:
         print(f"An error occurred during conversion: {e}")
-        print("Please ensure ffmpeg or libav is installed and in your system's PATH.")
+        print("Please ensure ffmpeg or libav is installed and in your PATH.")
         return False
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Convert MP3 to WAV format.")
-    parser.add_argument("--input", type=str, required=True, help="Path to the input MP3 file.")
-    parser.add_argument("--output", type=str, required=True, help="Path to save the output WAV file.")
-    parser.add_argument("--sr", type=int, default=16000, help="Target sample rate (default: 16000 Hz).")
-    parser.add_argument("--channels", type=int, default=1, help="Number of channels (default: 1 for mono).")
+    parser.add_argument(
+        "--input", type=str, required=True, help="Path to the input MP3 file."
+    )
+    parser.add_argument(
+        "--output", type=str, required=True, help="Output WAV file path."
+    )
+    # Sample rate argument
+    parser.add_argument(
+        "--sr",
+        type=int,
+        default=16000,
+        help="Target sample rate in Hz."
+    )
+    # Channels argument
+    parser.add_argument(
+        "--channels",
+        type=int,
+        default=1,
+        help="Number of channels (default: 1=mono)."
+    )
 
     args = parser.parse_args()
 
-    convert_to_wav(args.input, args.output, args.sr, args.channels)
+    convert_to_wav(
+        args.input, args.output, args.sr, args.channels
+    )

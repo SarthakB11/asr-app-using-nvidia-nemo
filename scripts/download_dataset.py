@@ -2,18 +2,20 @@
 import kagglehub
 import os
 
-# Define the path for kaggle.json within the project structure if needed for specific configurations
+# Define the path for kaggle.json within the project structure if needed
 # However, kagglehub typically uses ~/.kaggle/kaggle.json by default
 
-# Ensure the KAGGLE_CONFIG_DIR is set if you want to use a non-default location for kaggle.json
-# For this session, we've already copied it to ~/.kaggle/kaggle.json, so default should work.
+# Ensure the KAGGLE_CONFIG_DIR is set if you want to use a non-default location
+# For this session, we've already copied it to ~/.kaggle/kaggle.json
 
 print("Starting dataset download...")
 try:
     # Download latest version of the dataset
-    # The path returned is where the dataset files are stored, typically in ~/.cache/kagglehub/datasets/
-    path = kagglehub.dataset_download("hmsolanki/indian-languages-audio-dataset")
-    print(f"Dataset download complete.")
+    # The path returned is where the dataset files are stored
+    path = kagglehub.dataset_download(
+        "hmsolanki/indian-languages-audio-dataset"
+    )
+    print("Dataset download complete.")
     print(f"Path to dataset files: {path}")
 
     # Let's list the contents of the downloaded path to verify
@@ -26,4 +28,7 @@ try:
 
 except Exception as e:
     print(f"An error occurred during dataset download: {e}")
-    print("Please ensure your Kaggle API key (kaggle.json) is correctly set up at ~/.kaggle/kaggle.json")
+    print(
+        "Please ensure your Kaggle API key (kaggle.json) is correctly set up "
+        "at ~/.kaggle/kaggle.json"
+    )
