@@ -32,7 +32,7 @@ pip install -r requirements.txt
 ### Download Model
 Place the NeMo model in `downloads/` (already present if following plan):
 ```
-wget https://huggingface.co/NeMo-ASR/stt_hi_conformer_ctc_medium/resolve/main/stt_hi_conformer_ctc_medium.nemo -P downloads/
+https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_hi_conformer_ctc_medium
 ```
 
 Convert to ONNX (if not already):
