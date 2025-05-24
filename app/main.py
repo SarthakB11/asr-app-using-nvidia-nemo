@@ -84,23 +84,23 @@ async def transcribe_endpoint(file: UploadFile = File(...)):
         )
 
     try:
-        # 1. Validate and load audio using the utility function
-        audio_data = await validate_and_load_audio(file)
-        logger.info(f"Audio validated for {file.filename}. Shape: {audio_data.shape if audio_data is not None else 'None'}")
+        logger.info(f"TRANS_ENDPOINT: Attempting to validate and load audio for {file.filename}")
+        log_mel_spectrogram, num_frames = await validate_and_load_audio(file)
+        logger.info(f"TRANS_ENDPOINT: Audio validated for {file.filename}. Spectrogram Shape: {log_mel_spectrogram.shape}, Frames: {num_frames}")
 
-        # 2. Perform transcription using the ASR inference function
-        transcription = await transcribe_audio(audio_data)
-        logger.info(f"Transcription successful for {file.filename}: {transcription}")
+        logger.info(f"TRANS_ENDPOINT: Attempting to transcribe spectrogram for {file.filename}")
+        transcription = await transcribe_audio(log_mel_spectrogram, num_frames)
+        logger.info(f"TRANS_ENDPOINT: Transcription successful for {file.filename}: {transcription}")
 
         # 3. Return response
         return JSONResponse(content={"filename": file.filename, "transcription": transcription})
     
     except HTTPException as e:
         # Logged in audio_utils or here if it's from this endpoint's logic
-        logger.warning(f"HTTPException during transcription for {file.filename}: {e.detail}", exc_info=True)
+        logger.warning(f"TRANS_ENDPOINT: HTTPException during transcription for {file.filename}: {e.detail}", exc_info=True)
         raise e # Re-raise HTTPException to be handled by FastAPI
     except Exception as e:
-        logger.error(f"Unexpected error during transcription for {file.filename}: {e}", exc_info=True)
+        logger.error(f"TRANS_ENDPOINT: Unexpected error during transcription for {file.filename}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred during transcription: {str(e)}"
