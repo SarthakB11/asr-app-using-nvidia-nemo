@@ -28,6 +28,9 @@ output_name_log_probs: str = None
 ctc_labels: List[str] = None
 blank_label_idx: int = -1
 
+# Define N_MELS based on model expectation (from ONNX inspection)
+N_MELS = 80 
+
 def load_model(model_path: str = ONNX_MODEL_PATH, vocab_path: str = VOCAB_FILE_PATH):
     """Loads the ONNX ASR model and its vocabulary."""
     global ort_session, input_name_signal, input_name_length, output_name_log_probs, ctc_labels, blank_label_idx
@@ -168,76 +171,63 @@ def _ctc_greedy_decode(log_probs: np.ndarray, labels: List[str]) -> str:
     logger.debug(f"CTC Decoding - Final transcription after collapse: '{final_transcription}'")
     return final_transcription
 
-async def transcribe_audio(audio_data: np.ndarray) -> str:
-    """Transcribes audio data using the loaded ONNX ASR model."""
-    if ort_session is None or input_name_signal is None or output_name_log_probs is None or ctc_labels is None or blank_label_idx == -1:
-        logger.error("ASR model is not loaded or not configured properly. Cannot transcribe.")
-        raise RuntimeError("ASR model is not ready for transcription.")
+async def transcribe_audio(log_mel_spectrogram: np.ndarray, num_frames: int) -> str:
+    """Transcribes audio data (as log-Mel spectrogram) using the loaded ONNX ASR model."""
+    logger.info(f"ASR_INFERENCE: Entered transcribe_audio. Spectrogram shape: {log_mel_spectrogram.shape}, num_frames: {num_frames}")
+    global ort_session, input_name_signal, input_name_length, output_name_log_probs, ctc_labels
+
+    if ort_session is None:
+        logger.error("ONNX model is not loaded. Call load_model() first.")
+        raise RuntimeError("Model not loaded.")
 
     try:
-        chunk_size = 80  # Based on model's expected input shape
-        num_samples = audio_data.shape[0]
-        all_log_probs = []
+        logger.info(f"Starting transcription for log-Mel spectrogram with shape {log_mel_spectrogram.shape} ({num_frames} frames).")
 
-        logger.info(f"Starting transcription for audio with {num_samples} samples, chunk size {chunk_size}.")
+        # Ensure spectrogram has the expected number of Mel bins
+        if log_mel_spectrogram.shape[0] != N_MELS:
+            logger.error(f"Spectrogram has {log_mel_spectrogram.shape[0]} Mel bins, but model expects {N_MELS}.")
+            raise ValueError(f"Incorrect number of Mel bins. Expected {N_MELS}.")
 
-        for i in range(0, num_samples, chunk_size):
-            chunk = audio_data[i:i + chunk_size]
-            actual_chunk_length = chunk.shape[0]
+        # Reshape spectrogram to [1, N_MELS, num_frames] for [batch, features, time_steps]
+        # This matches the ONNX model's 'audio_signal' input: (batch_size, 80, num_frames)
+        audio_signal_input = log_mel_spectrogram.astype(np.float32).reshape(1, N_MELS, num_frames)
+        
+        input_feed = {input_name_signal: audio_signal_input}
+        length_input_val_for_log = 'N/A'
 
-            if actual_chunk_length < chunk_size:
-                # Pad the last chunk with zeros if it's smaller than chunk_size
-                padding = np.zeros(chunk_size - actual_chunk_length, dtype=np.float32)
-                chunk = np.concatenate((chunk, padding))
-                logger.debug(f"Padded last chunk from {actual_chunk_length} to {chunk_size} samples.")
-            
-            # Reshape chunk to [1, chunk_size, 1] for [batch, samples, channels]
-            audio_signal_chunk = chunk.astype(np.float32).reshape(1, chunk_size, 1)
-            
-            input_feed = {input_name_signal: audio_signal_chunk}
+        if input_name_length:
+            # The 'length' input for the ONNX model is the number of frames in the spectrogram
+            length_input_arr = np.array([num_frames], dtype=np.int64)
+            input_feed[input_name_length] = length_input_arr
+            length_input_val_for_log = length_input_arr[0]
+        
+        logger.debug(f"ASR_INFERENCE: Preparing input feed. Signal shape {audio_signal_input.shape}, length {length_input_val_for_log}")
 
-            if input_name_length:
-                # The 'length' input for Conformer models usually refers to the number of valid frames/chunks,
-                # not individual samples within the chunk, especially if the model processes fixed-size chunks internally.
-                # For a fixed chunk_size of 80, the length input might be related to how many such 80-sample chunks are valid,
-                # or it might expect the length of the signal *before* chunking if it handles chunking internally.
-                # Given the error, the primary issue is the audio_signal dimension.
-                # Let's assume for now the 'length' input refers to the number of samples in the *current* chunk being processed.
-                # This might need adjustment if the model's 'length' input has a different meaning for chunked input.
-                # For a fixed chunk size of 80, this length would always be 80.
-                # CORRECTED: The length should be the number of acoustic frames after subsampling.
-                # With subsampling_factor = 4, for a chunk_size of 80, length = 80 / 4 = 20.
-                subsampling_factor = 4
-                processed_length = chunk_size // subsampling_factor
-                chunk_length_batch = np.array([processed_length], dtype=np.int64) 
-                input_feed[input_name_length] = chunk_length_batch
-                logger.debug(f"Processing chunk {i//chunk_size + 1}: signal shape {audio_signal_chunk.shape}, length {chunk_length_batch[0]} (after subsampling)")
-            else:
-                logger.debug(f"Processing chunk {i//chunk_size + 1}: signal shape {audio_signal_chunk.shape} (no length input)")
+        # Define a synchronous wrapper for the inference call to run in threadpool
+        def _run_inference(): 
+            logger.info("ASR_INFERENCE: Attempting ort_session.run()")
+            result = ort_session.run([output_name_log_probs], input_feed)
+            logger.info("ASR_INFERENCE: ort_session.run() completed.")
+            return result
+        
+        # Run inference in a threadpool to avoid blocking the event loop
+        log_probs_batch = await run_in_threadpool(_run_inference)
+        
+        # Output is [batch_size, time_steps_in_output, num_classes]
+        # For a single item in the batch, this is [1, time_steps_model_output, num_classes]
+        # We need to pass [time_steps_model_output, num_classes] to _ctc_greedy_decode
+        # log_probs_batch[0] is the tensor for the first (and only) output name
+        # log_probs_batch[0][0] extracts the actual log_probs for the first batch item
+        processed_log_probs = log_probs_batch[0][0]
+        
+        logger.info(f"ASR_INFERENCE: Inference complete. Log probs shape: {processed_log_probs.shape}")
 
-            def _run_inference_chunk(): # Closure to capture current chunk's input_feed
-                return ort_session.run([output_name_log_probs], input_feed)
-            
-            log_probs_chunk_batch = await run_in_threadpool(_run_inference_chunk)
-            # Assuming output is [batch_size, time_steps_in_chunk, num_classes]
-            # For a single chunk in the batch, this is [1, time_steps_for_80_samples, num_classes]
-            current_chunk_log_probs = log_probs_chunk_batch[0][0] 
-            all_log_probs.append(current_chunk_log_probs)
-            logger.debug(f"Chunk {i//chunk_size + 1} processed. Log probs shape: {current_chunk_log_probs.shape}")
-
-        # Concatenate log_probs from all chunks along the time_steps axis (axis 0)
-        if not all_log_probs:
-            logger.warning("No log_probs were generated, possibly empty audio input.")
-            return ""
-            
-        combined_log_probs = np.concatenate(all_log_probs, axis=0)
-        logger.info(f"Combined log_probs shape: {combined_log_probs.shape}")
-
-        transcription = _ctc_greedy_decode(combined_log_probs, ctc_labels)
-        logger.info(f"Decoded transcription: {transcription}")
+        logger.info("ASR_INFERENCE: Attempting CTC greedy decode.")
+        transcription = _ctc_greedy_decode(processed_log_probs, ctc_labels)
+        logger.info(f"ASR_INFERENCE: CTC greedy decode complete. Transcription: {transcription}")
         
         return transcription
 
     except Exception as e:
-        logger.error(f"Error during ASR transcription: {e}", exc_info=True)
+        logger.error(f"ASR_INFERENCE: Error during ASR transcription: {e}", exc_info=True)
         raise RuntimeError(f"ASR transcription failed: {e}")
