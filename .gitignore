@@ -125,3 +125,13 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+
+# Project specific
+implementation-plan/
+implementation-plan.zip
+test_import.py
+.windsurfrules
+
+#Kaggle credentials
+~/.kaggle/kaggle.json
+scripts/kaggle.json
