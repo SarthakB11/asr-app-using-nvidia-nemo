@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 # Constants
 API_URL = "http://localhost:8000/transcribe"
-HINDI_DATASET_PATH = "/home/sarthak-bhardwaj/.cache/kagglehub/datasets/hmsolanki/indian-languages-audio-dataset/versions/1/Indian_Languages_Audio_Dataset/Hindi"
-TEMP_DIR = Path("./temp_audio")
+HINDI_DATASET_PATH = "temp_audio" # Use local audio files for testing
+TEMP_DIR = Path("temp_audio_conversion_output") # Directory for converted WAVs for this script
 
 def transcribe_audio(wav_file):
     """Send audio file to ASR API for transcription."""
