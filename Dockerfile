@@ -7,6 +7,7 @@ WORKDIR /opt/app
 # Install system dependencies
 # libsndfile1 is for librosa/soundfile, ffmpeg for pydub
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     libsndfile1 \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
