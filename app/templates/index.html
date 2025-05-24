@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASR Application - NVIDIA NeMo</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="dark-theme">
+    <header>
+        <div class="container">
+            <h1>ASR Application - NVIDIA NeMo</h1>
+            <div class="theme-toggle">
+                <button id="theme-toggle-btn" aria-label="Toggle theme">
+                    <i class="fas fa-sun light-icon"></i>
+                    <i class="fas fa-moon dark-icon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="status-indicator">
+            <div id="model-status" class="status-badge">
+                <span class="status-icon"></span>
+                <span class="status-text">Checking model status...</span>
+            </div>
+        </div>
+
+        <section class="upload-section">
+            <div id="upload-area" class="upload-area">
+                <div class="upload-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <h3>Upload Audio File</h3>
+                <p>Drag and drop an audio file here, or click to select</p>
+                <p class="file-types">Supported formats: WAV, MP3, FLAC, OGG</p>
+                <input type="file" id="file-input" accept="audio/*" class="file-input">
+            </div>
+            <div class="upload-actions">
+                <button id="transcribe-btn" class="btn primary-btn" disabled>
+                    <i class="fas fa-language"></i> Transcribe
+                </button>
+                <button id="clear-btn" class="btn secondary-btn" disabled>
+                    <i class="fas fa-trash"></i> Clear
+                </button>
+            </div>
+        </section>
+
+        <section class="results-section">
+            <h2>Transcription Results</h2>
+            <div id="results-container" class="results-container">
+                <!-- Transcription results will be added here -->
+                <div class="no-results">No transcriptions yet</div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 ASR Application - NVIDIA NeMo</p>
+        </div>
+    </footer>
+
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p>Processing audio...</p>
+    </div>
+
+    <script src="{{ url_for('static', path='/js/main.js') }}"></script>
+</body>
+</html>

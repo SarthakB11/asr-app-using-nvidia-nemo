@@ -1,7 +1,10 @@
 import logging
 import os
-from fastapi import FastAPI, File, UploadFile, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, File, UploadFile, HTTPException, status, Request
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pathlib import Path
 from pythonjsonlogger import jsonlogger
 
 # Import configurations and utility functions
@@ -31,6 +34,20 @@ app = FastAPI(
     ),
     version="1.0.0"
 )
+
+# Set up static files directory
+static_dir = Path(__file__).parent / "static"
+templates_dir = Path(__file__).parent / "templates"
+
+# Create directories if they don't exist
+static_dir.mkdir(exist_ok=True)
+templates_dir.mkdir(exist_ok=True)
+
+# Mount static files directory
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+# Set up Jinja2 templates
+templates = Jinja2Templates(directory=str(templates_dir))
 
 # --- Application State ---
 app_state = {"is_model_loaded": False}
@@ -95,6 +112,13 @@ async def health_check():
         },
         status_code=status.HTTP_200_OK
     )
+
+
+@app.get("/", response_class=HTMLResponse, tags=["UI"])
+async def root(request: Request):
+    """Serve the main application page."""
+    logger.info("Main page requested")
+    return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.post("/transcribe", summary="Transcribe Audio File", tags=["ASR"])
