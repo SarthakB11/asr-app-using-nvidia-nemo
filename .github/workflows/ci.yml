@@ -33,11 +33,28 @@ jobs:
           source .venv/bin/activate # Activate venv again for this step
           pip install flake8
           flake8 app/ scripts/
+      - name: Start FastAPI application
+        run: |
+          source .venv/bin/activate
+          # Start uvicorn in the background using &
+          # nohup is used to prevent the process from being killed if the parent shell exits
+          # We redirect output to a file and run in the background
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          # Give the server a moment to start up
+          sleep 5
+        # Set a timeout for this step if the app doesn't start properly
+        timeout-minutes: 1
       - name: Run tests
         run: |
           source .venv/bin/activate # Activate venv again for this step
           # Add your test scripts here
           python scripts/test_transcription.py --num-files 1 || true
+      - name: Stop FastAPI application (optional, good practice)
+        # This step ensures the background process is terminated cleanly
+        # Use `pkill` to kill processes named 'uvicorn'
+        if: always() # Run this even if previous steps fail
+        run: |
+          pkill -f uvicorn || true # '|| true' to prevent failure if uvicorn isn't found
       - name: Build Docker image
         run: |
           docker build -t hindi-asr-app .
