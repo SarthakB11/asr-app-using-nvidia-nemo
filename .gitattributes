@@ -1,1 +1,2 @@
+models/stt_hi_conformer_ctc_medium.onnx filter=lfs diff=lfs merge=lfs -text
 *.onnx filter=lfs diff=lfs merge=lfs -text
