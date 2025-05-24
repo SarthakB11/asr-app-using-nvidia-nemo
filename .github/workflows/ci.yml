@@ -15,16 +15,27 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+      - name: Create and activate virtual environment
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          source .venv/bin/activate # Activate venv again for this step
+          pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Install FFmpeg
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg
       - name: Lint with flake8
         run: |
+          source .venv/bin/activate # Activate venv again for this step
           pip install flake8
           flake8 app/ scripts/
       - name: Run tests
         run: |
+          source .venv/bin/activate # Activate venv again for this step
           # Add your test scripts here
           python scripts/test_transcription.py --num-files 1 || true
       - name: Build Docker image
