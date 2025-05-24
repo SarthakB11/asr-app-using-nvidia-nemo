@@ -10,7 +10,7 @@ logging.basicConfig(
 )
 
 # --- Configuration ---
-BASE_DIR = "/home/sarthak-bhardwaj/Documents/asr-app-using-nvidia-nemo"
+BASE_DIR = "."
 DOWNLOADS_DIR = os.path.join(BASE_DIR, "downloads")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 
