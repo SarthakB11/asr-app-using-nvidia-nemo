@@ -1,0 +1,8 @@
+fastapi[all]
+onnxruntime
+numpy
+soundfile
+pydub
+python-json-logger
+nemo_toolkit[asr]
+kagglehub
