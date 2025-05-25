@@ -25,13 +25,13 @@ share/python-wheels/
 .installed.cfg
 *.egg
 
+
 # Large files and directories
 downloads/*
 !downloads/*.nemo
 
 # LFS files
 .gitattributes
-!**/*.nemo
 MANIFEST
 
 # PyInstaller

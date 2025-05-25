@@ -1,27 +1,49 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+# Set permissions for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          lfs: true  # Enable Git LFS to get the model files
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Create and activate virtual environment
         run: |
           python -m venv .venv
           source .venv/bin/activate
+          
       - name: Install dependencies
         run: |
-          source .venv/bin/activate # Activate venv again for this step
+          source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
       - name: Install FFmpeg
@@ -39,20 +61,120 @@ jobs:
           python scripts/convert_to_onnx.py
         # Add a timeout here if the conversion can take a long time
         timeout-minutes: 5 # Adjust as needed
-      - name: Start FastAPI application
+      # Removed testing steps as requested
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        
+      - name: Build and cache Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: false
+          load: true
+          tags: hindi-asr-app:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          
+  deploy:
+    needs: build-test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          lfs: true
+          
+      - name: Setup Pages
+        uses: actions/configure-pages@v3
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
         run: |
-          source .venv/bin/activate
-          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          sleep 5
-        timeout-minutes: 1
-      - name: Run tests
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Verify model files
         run: |
-          source .venv/bin/activate # Activate venv again for this step
-          python scripts/test_transcription.py --num-files 1 || true
-      - name: Stop FastAPI application (optional, good practice)
-        if: always()
+          # Check if model files exist (should be pulled via Git LFS)
+          if [ ! -f ./downloads/stt_hi_conformer_ctc_medium.nemo ]; then
+            echo "WARNING: NeMo model file not found. It should be tracked by Git LFS."
+            # Create directory if it doesn't exist
+            mkdir -p downloads
+            # Download as fallback
+            echo "Downloading as fallback..."
+            wget -q -O ./downloads/stt_hi_conformer_ctc_medium.nemo https://huggingface.co/nvidia/stt_hi_conformer_ctc_medium/resolve/main/stt_hi_conformer_ctc_medium.nemo
+          else
+            echo "NeMo model file found."
+            # Verify file size to ensure it's not an LFS pointer
+            FILE_SIZE=$(stat -c%s "./downloads/stt_hi_conformer_ctc_medium.nemo")
+            if [ "$FILE_SIZE" -lt 1000000 ]; then  # Less than 1MB, likely an LFS pointer
+              echo "WARNING: Model file appears to be an LFS pointer. Downloading actual file..."
+              wget -q -O ./downloads/stt_hi_conformer_ctc_medium.nemo https://huggingface.co/nvidia/stt_hi_conformer_ctc_medium/resolve/main/stt_hi_conformer_ctc_medium.nemo
+            fi
+          fi
+        timeout-minutes: 10
+          
+      - name: Convert NeMo to ONNX model
         run: |
-          pkill -f uvicorn || true
-      - name: Build Docker image
+          python scripts/convert_to_onnx.py
+        timeout-minutes: 5
+        
+      - name: Prepare static files for GitHub Pages
         run: |
-          docker build -t hindi-asr-app .
+          mkdir -p ./static_build
+          
+          # Copy static assets
+          cp -r app/static/* ./static_build/ || true
+          
+          # Create models directory
+          mkdir -p ./static_build/models
+          
+          # Copy model files (vocabulary.json is needed for client-side processing)
+          cp -r models/vocabulary.json ./static_build/models/ || true
+          
+          # Create a simple index.html
+          cat > ./static_build/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Hindi ASR Application</title>
+              <style>
+                body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+              </style>
+            </head>
+            <body>
+              <h1>Hindi ASR Application</h1>
+              <p>This application provides Hindi speech recognition capabilities using NVIDIA NeMo models converted to ONNX format.</p>
+              <h2>Features</h2>
+              <ul>
+                <li>Mel spectrogram preprocessing for optimized audio input</li>
+                <li>ONNX model for fast inference</li>
+                <li>FastAPI backend for high-performance API</li>
+              </ul>
+            </body>
+          </html>
+          EOF
+          
+          # Create a simple README
+          cat > ./static_build/README.md << 'EOF'
+          # Hindi ASR Application
+          
+          This is the static site for the Hindi ASR Application.
+          The main application is a FastAPI-based service that provides Hindi speech recognition capabilities.
+          EOF
+          
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: './static_build'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2

@@ -10,7 +10,8 @@ logging.basicConfig(
 )
 
 # --- Configuration ---
-BASE_DIR = "."
+# Use relative paths for better compatibility with Docker
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOWNLOADS_DIR = os.path.join(BASE_DIR, "downloads")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 

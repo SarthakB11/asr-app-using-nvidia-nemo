@@ -1,48 +1,70 @@
-# Stage 1: Builder stage - To install dependencies
-FROM python:3.10-slim AS builder
+# Stage 1: Base image with dependencies
+FROM python:3.10-slim AS base
 
-# Set working directory
-WORKDIR /opt/app
+WORKDIR /app
 
 # Install system dependencies
-# libsndfile1 is for librosa/soundfile, ffmpeg for pydub
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libsndfile1 \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Python dependencies
-# Using --no-cache-dir to reduce layer size
-# Target a specific directory for easy copying to the next stage
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt -t /opt/app/packages
+# Stage 2: Final image
+FROM base AS final
 
-# Stage 2: Final stage - To create the lean application image
-FROM python:3.10-slim
-
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies required at runtime (if any, beyond what's in slim)
-# For now, assuming libsndfile1 and ffmpeg are also needed at runtime by the libraries
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libsndfile1 \
-    ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+# Copy application code and scripts
+COPY app/ ./app/
+COPY scripts/ ./scripts/
+COPY requirements.txt .
 
-# Copy installed packages from builder stage
-COPY --from=builder /opt/app/packages /usr/local/lib/python3.10/site-packages
+# Create necessary directories
+RUN mkdir -p ./models ./downloads
 
-# Copy application code
-COPY ./app ./app
+# Copy the NeMo model file and pre-converted ONNX model
+COPY downloads/stt_hi_conformer_ctc_medium.nemo ./downloads/
+COPY models/stt_hi_conformer_ctc_medium.onnx ./models/
+COPY models/vocabulary.json ./models/
 
-# Copy models - Assuming models are in a 'models' directory at the root of the project
-# and app/config.py or similar points to /app/models/
-COPY ./models ./models
+# Create startup script file
+COPY <<EOF /app/start.sh
+#!/bin/bash
+
+# Check if ONNX model already exists
+if [ ! -f ./models/stt_hi_conformer_ctc_medium.onnx ] || [ ! -f ./models/vocabulary.json ]; then
+  # Check if NeMo model file exists
+  if [ ! -f ./downloads/stt_hi_conformer_ctc_medium.nemo ]; then
+    echo "ERROR: NeMo model file not found at ./downloads/stt_hi_conformer_ctc_medium.nemo"
+    echo "Please ensure the model file is copied to the container."
+    exit 1
+  fi
+
+  # Convert model to ONNX
+  echo "ONNX model or vocabulary not found. Converting NeMo model to ONNX format..."
+  python scripts/convert_to_onnx.py
+
+  # Check if ONNX model was created successfully
+  if [ ! -f ./models/stt_hi_conformer_ctc_medium.onnx ]; then
+    echo "ERROR: ONNX model conversion failed."
+    exit 1
+  fi
+else
+  echo "ONNX model and vocabulary already exist. Skipping conversion."
+fi
+
+# Start the application
+echo "Starting FastAPI application..."
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+EOF
+
+# Make startup script executable
+RUN chmod +x /app/start.sh
 
 # Expose the port the app runs on
 EXPOSE 8000
@@ -50,6 +72,5 @@ EXPOSE 8000
 # Add /app to PYTHONPATH to ensure modules are found
 ENV PYTHONPATH=/app
 
-# Command to run the application
-# Ensure app.main:app is the correct path to your FastAPI app instance
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Command to run the startup script
+CMD ["/app/start.sh"]

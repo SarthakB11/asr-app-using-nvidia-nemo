@@ -24,14 +24,15 @@ tests/
 *.DS_Store
 
 # Large files/directories not needed in image
-downloads/
 temp_audio/
 transcription_results/
 stderr.log
 stdout.log
 venv
 *.onnx
-*.nemo
+
+# Allow .nemo files to be included
+!downloads/*.nemo
 
 # If models are mounted as volumes, exclude them from image copy
 # models/* 
