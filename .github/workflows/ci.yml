@@ -181,28 +181,17 @@ jobs:
           # Copy model files (vocabulary.json is needed for client-side processing)
           cp -r models/vocabulary.json ./static_build/models/ || true
           
-          # Create a simple index.html
-          cat > ./static_build/index.html << 'EOF'
-          <!DOCTYPE html>
-          <html>
-            <head>
-              <title>Hindi ASR Application</title>
-              <style>
-                body { font-family: system-ui, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-              </style>
-            </head>
-            <body>
-              <h1>Hindi ASR Application</h1>
-              <p>This application provides Hindi speech recognition capabilities using NVIDIA NeMo models converted to ONNX format.</p>
-              <h2>Features</h2>
-              <ul>
-                <li>Mel spectrogram preprocessing for optimized audio input</li>
-                <li>ONNX model for fast inference</li>
-                <li>FastAPI backend for high-performance API</li>
-              </ul>
-            </body>
-          </html>
-          EOF
+          # Create templates directory and copy the actual application template
+          mkdir -p ./static_build/templates
+          cp -r app/templates/* ./static_build/templates/ || true
+          
+          # Modify the application template to work as a static file
+          # First, copy the template to index.html
+          cp app/templates/index.html ./static_build/index.html || true
+          
+          # Then replace template variables with static paths
+          sed -i 's|{{ url_for(\x27static\x27, path=\x27/css/styles.css\x27) }}|./static/css/styles.css|g' ./static_build/index.html
+          sed -i 's|{{ url_for(\x27static\x27, path=\x27/js/main.js\x27) }}|./static/js/main.js|g' ./static_build/index.html
           
           # Create a simple README
           cat > ./static_build/README.md << 'EOF'
