@@ -62,18 +62,54 @@ jobs:
         # Add a timeout here if the conversion can take a long time
         timeout-minutes: 5 # Adjust as needed
       # Removed testing steps as requested
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-        
-      - name: Build and cache Docker image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: false
-          load: true
-          tags: hindi-asr-app:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # Skip Docker build due to disk space issues
+      - name: Generate Docker build command (for reference only)
+        run: |
+          echo "Docker build command that would be used:"
+          echo "docker build -t hindi-asr-app:latest ."
+          echo "Skipping actual build due to disk space constraints"
+          
+      - name: Create deployment artifact without Docker
+        run: |
+          # Create a deployment package instead of Docker image
+          mkdir -p deployment_package
+          cp -r app/ deployment_package/
+          cp -r scripts/ deployment_package/
+          cp -r models/ deployment_package/ || true
+          cp -r downloads/ deployment_package/ || true
+          cp requirements.txt deployment_package/
+          
+          # Create a simple deployment script
+          cat > deployment_package/deploy.sh << 'EOF'
+          #!/bin/bash
+          # Simple deployment script
+          python -m pip install -r requirements.txt
+          python scripts/convert_to_onnx.py
+          uvicorn app.main:app --host 0.0.0.0 --port 8000
+          EOF
+          
+          chmod +x deployment_package/deploy.sh
+          
+          # Create a README for deployment
+          cat > deployment_package/DEPLOY.md << 'EOF'
+          # Deployment Instructions
+          
+          This package contains all necessary files to run the Hindi ASR application.
+          
+          ## Requirements
+          - Python 3.10+
+          - ffmpeg
+          
+          ## Steps
+          1. Install dependencies: `pip install -r requirements.txt`
+          2. Convert model: `python scripts/convert_to_onnx.py`
+          3. Run the application: `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+          
+          Or simply run the included deploy.sh script: `./deploy.sh`
+          EOF
+          
+          # Create a tarball of the deployment package
+          tar -czf hindi-asr-app.tar.gz deployment_package/
           
   deploy:
     needs: build-test
