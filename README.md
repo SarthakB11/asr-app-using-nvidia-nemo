@@ -1,3 +1,4 @@
+
 # FastAPI ASR Application (Hindi, ONNX, NVIDIA NeMo)
 
 ## Overview
@@ -13,12 +14,20 @@ This project provides a production-ready Automatic Speech Recognition (ASR) REST
                         [Audio Preprocessing (librosa, numpy)]
 ```
 
+## Project Video
+[screen-capture.webm](https://github.com/user-attachments/assets/9def8a09-7a2b-4711-937b-fe8a7ef44d1c)
+
 ## Features
 - Hindi ASR using NVIDIA NeMo model (ONNX)
 - REST API (`/transcribe`) for audio file transcription
 - Audio preprocessing: dither, pre-emphasis, log-Mel spectrograms (80 bins)
 - Dockerized for reproducibility
 - Test scripts and sample usage
+
+## Screenshots
+![Screenshot from 2025-05-25 02-12-07](https://github.com/user-attachments/assets/98c1b7ee-b638-4817-9862-2f4651ff8302)
+![Screenshot from 2025-05-25 02-12-14](https://github.com/user-attachments/assets/e56dcabc-a6b4-4e83-ab73-7bfb70123f4e)
+
 
 ## Installation & Setup
 ### Local (Python v3.10 recommended)
