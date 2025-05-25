@@ -115,6 +115,11 @@ jobs:
     needs: build-test
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # Use GitHub Pages environment for deployment
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -207,10 +212,21 @@ jobs:
           The main application is a FastAPI-based service that provides Hindi speech recognition capabilities.
           EOF
           
-      - name: Upload artifact
+      # Upload the deployment package as an artifact
+      - name: Upload deployment package
+        uses: actions/upload-artifact@v3
+        with:
+          name: hindi-asr-deployment
+          path: hindi-asr-app.tar.gz
+          retention-days: 7
+          
+      # Upload the static site for GitHub Pages
+      - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v2
         with:
           path: './static_build'
+          
+      # Deploy to GitHub Pages
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v2
