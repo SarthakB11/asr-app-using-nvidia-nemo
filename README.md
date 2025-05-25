@@ -17,72 +17,181 @@ This project provides a production-ready Automatic Speech Recognition (ASR) REST
 ## Project Video
 [screen-capture.webm](https://github.com/user-attachments/assets/9def8a09-7a2b-4711-937b-fe8a7ef44d1c)
 
-## Features
-- Hindi ASR using NVIDIA NeMo model (ONNX)
-- REST API (`/transcribe`) for audio file transcription
-- Audio preprocessing: dither, pre-emphasis, log-Mel spectrograms (80 bins)
-- Dockerized for reproducibility
-- Test scripts and sample usage
+## Key Components
+
+### 1. FastAPI Application (`app/main.py`)
+- REST API endpoints for audio transcription
+- Asynchronous request handling
+- Input validation and error handling
+- CORS middleware for web compatibility
+
+### 2. Audio Preprocessing (`app/audio_utils.py`)
+- Audio loading and validation (16kHz, mono WAV)
+- Signal processing pipeline:
+  - Dithering for numerical stability
+  - Pre-emphasis filter
+  - Log-Mel spectrogram extraction (80 bins)
+  - Audio duration validation
+
+### 3. ASR Inference (`app/asr_inference.py`)
+- ONNX model loading and inference
+- CTC decoding
+- Batch processing support
+- Model input/output handling
+
+### 4. Model Conversion (`scripts/convert_to_onnx.py`)
+- Downloads the `stt_hi_conformer_ctc_medium` model from NVIDIA NeMo
+- Converts the model to ONNX format
+- Saves the model with proper node names for inference
+
+### 5. Docker Configuration (`Dockerfile`)
+- Multi-stage build for optimized image size
+- Python 3.10 base image
+- Dependency installation
+- Non-root user for security
+- Health check endpoint
 
 ## Screenshots
 ![Screenshot from 2025-05-25 02-12-07](https://github.com/user-attachments/assets/98c1b7ee-b638-4817-9862-2f4651ff8302)
 ![Screenshot from 2025-05-25 02-12-14](https://github.com/user-attachments/assets/e56dcabc-a6b4-4e83-ab73-7bfb70123f4e)
 
+## Features
+- **High Accuracy**: Based on NVIDIA's Conformer CTC model trained on Hindi speech
+- **Low Latency**: ONNX Runtime optimized inference
+- **Scalable**: Containerized deployment ready
+- **Developer Friendly**: Well-documented API and code
+- **Production Ready**: Health checks, logging, and error handling
 
 ## Installation & Setup
-### Local (Python v3.10 recommended)
+
+### Prerequisites
+- Python 3.10+
+- Docker (optional, for containerized deployment)
+- NVIDIA GPU (recommended) or CPU
+
+### 1. Local Development Setup
 ```bash
+# Create and activate virtual environment
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+
+# Install dependencies
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Download Model
-Place the NeMo model in `downloads/` (already present if following plan):
-```
-https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_hi_conformer_ctc_medium
+### 2. Model Setup
+#### Option A: Download Pre-converted ONNX Model
+```bash
+mkdir -p models
+# Download stt_hi_conformer_ctc_medium.onnx to models/
+# https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/stt_hi_conformer_ctc_medium
 ```
 
-Convert to ONNX (if not already):
+#### Option B: Convert from NeMo Model
+1. Download the NeMo model:
+   ```bash
+   mkdir -p downloads
+   # Download stt_hi_conformer_ctc_medium.nemo to downloads/
+   ```
+
+2. Convert to ONNX:
+   ```bash
+   python scripts/convert_to_onnx.py \
+     --nemo-path downloads/stt_hi_conformer_ctc_medium.nemo \
+     --output-dir models
+   ```
+
+### 3. Run the Application
+#### Development Mode
 ```bash
-venv/bin/python scripts/convert_to_onnx.py
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### Run Locally
+#### Production Mode (with Gunicorn)
 ```bash
-venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+gunicorn -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:8000 --workers 4
 ```
 
-### Docker
-Build and run:
+### 4. Docker Deployment
 ```bash
+# Build the image
 docker build -t hindi-asr-app .
-docker run -p 8000:8000 hindi-asr-app
+
+# Run the container
+docker run -d \
+  --name asr-app \
+  -p 8000:8000 \
+  -v $(pwd)/models:/app/models \
+  hindi-asr-app
 ```
 
-## API Usage
-### Transcribe Endpoint
-- **POST** `/transcribe`
-- **Form-data**: `file` (audio/wav, 16kHz, mono, 5-10s)
+## API Documentation
 
-#### Example (curl)
+### 1. Transcribe Audio
+- **Endpoint**: `POST /transcribe`
+- **Content-Type**: `multipart/form-data`
+- **Parameters**:
+  - `file`: Audio file (WAV, 16kHz, mono, 5-10s)
+- **Response**:
+  ```json
+  {
+    "status": "success",
+    "text": "transcribed text in Hindi",
+    "duration": 5.43,
+    "language": "hi"
+  }
+  ```
+
+### 2. Health Check
+- **Endpoint**: `GET /health`
+- **Response**:
+  ```json
+  {
+    "status": "healthy",
+    "model_loaded": true,
+    "version": "1.0.0"
+  }
+  ```
+
+## Example Usage
+
+### cURL
 ```bash
-curl -X POST "http://localhost:8000/transcribe" -F "file=@temp_audio/hindi_sample.wav"
+curl -X POST "http://localhost:8000/transcribe" \
+  -H "accept: application/json" \
+  -F "file=@temp_audio/hindi_sample.wav"
 ```
 
-#### Example (Python)
+### Python Client
 ```python
 import requests
-with open('temp_audio/hindi_sample.wav', 'rb') as f:
-    r = requests.post('http://localhost:8000/transcribe', files={'file': f})
-    print(r.json())
+
+def transcribe_audio(file_path, server_url="http://localhost:8000"):
+    with open(file_path, 'rb') as f:
+        files = {'file': f}
+        response = requests.post(f"{server_url}/transcribe", files=files)
+        return response.json()
+
+# Example usage
+result = transcribe_audio("temp_audio/hindi_sample.wav")
+print(f"Transcribed Text: {result['text']}")
+print(f"Processing Time: {result['duration']:.2f} seconds")
 ```
 
 ## Testing
-Run the provided test script:
+
+### Unit Tests
 ```bash
-venv/bin/python scripts/test_transcription.py --num-files 3
+pytest tests/
+```
+
+### Integration Test
+```bash
+python scripts/test_transcription.py \
+  --input-dir sample_audio \
+  --output results.json \
+  --num-files 5
 ```
 
 ## Troubleshooting
