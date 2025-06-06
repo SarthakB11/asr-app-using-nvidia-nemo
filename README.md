@@ -1,5 +1,5 @@
 
-# FastAPI ASR Application (Hindi, ONNX, NVIDIA NeMo)
+# Hindi Audio Speech Recognition App (ONNX Optimization, NVIDIA NeMo Model)
 
 ## Overview
 This project provides a production-ready Automatic Speech Recognition (ASR) REST API for Hindi, using a FastAPI backend and an ONNX-optimized NVIDIA NeMo `stt_hi_conformer_ctc_medium` model. It supports transcription of short audio clips (5-10 seconds, 16kHz WAV) and is containerized for easy deployment.
